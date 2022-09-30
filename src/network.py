@@ -13,13 +13,13 @@ and omits many desirable features.
 # Standard library
 import random
 import time
+import os
 
 # Third-party libraries
 import numpy as np
 
 
 class Network(object):
-
     def __init__(self, sizes):
         """The list ``sizes`` contains the number of neurons in the
         respective layers of the network.  For example, if the list
@@ -134,6 +134,61 @@ class Network(object):
         """Return the vector of partial derivatives \partial C_x /
         \partial a for the output activations."""
         return (output_activations-y)
+
+    def save_state_to_file(self, filename):
+        """Save network sizes, weights and biases to file.
+        The data is stored in the following format:
+        Number of layers, 4 Bytes little endian
+        Elements of sizes, each 4 Bytes little endian
+        Each bias vector with elements of 8 bytes native
+        Each weight matrix with elements of 8 bytes native
+        """
+        path = os.path.join("..", "configs", filename)
+        f = open(path, "wb")
+        f.write(self.num_layers.to_bytes(4,"little"))
+        for size in self.sizes:
+            f.write(size.to_bytes(4,"little"))
+        for vec_bias in self.biases:
+            f.write(vec_bias.tobytes())
+        for mat_weights in self.weights:
+            f.write(mat_weights.tobytes())
+
+        print("Network config stored to file '"+filename+"'")
+
+    def load_state_from_file(self, filename):
+        """Load network sizes, weights and biases from file
+        """
+        path = os.path.join("..", "configs", filename)
+        f = open(path, "rb")
+        self.num_layers = int.from_bytes(f.read(4), 'little')
+
+        new_sizes = []
+        for _ in np.arange(self.num_layers):
+            new_sizes.append(int.from_bytes(f.read(4), 'little'))
+        self.sizes = new_sizes
+
+        new_biases = []
+        for i_layer in np.arange(1, self.num_layers):
+            new_biases.append(np.frombuffer(f.read(self.sizes[i_layer]*8), dtype=np.float64
+                    ).reshape((self.sizes[i_layer], 1)))
+        self.biases = new_biases
+
+        new_weights = []
+        for i_layer in np.arange(1, self.num_layers):
+            new_weights.append(np.frombuffer(f.read(self.sizes[i_layer]*self.sizes[i_layer-1]*8), dtype=np.float64
+                    ).reshape((self.sizes[i_layer], self.sizes[i_layer-1])))
+        self.weights = new_weights
+
+        print("Network config restored from file '"+filename+"'")
+
+    def evaluate_data_set(self, data):
+        time1 = time.time()
+        correct_res = self.evaluate(data)   
+        time2 = time.time()
+
+        print("Test: {0} / {1}, took {2:.2f} seconds".format(
+            correct_res, len(data), time2-time1))
+        
 
 #### Miscellaneous functions
 def sigmoid(z):
